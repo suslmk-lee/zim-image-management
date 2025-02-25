@@ -33,12 +33,14 @@ func main() {
 
 	// 현재 배포된 파드의 이미지 목록 가져오기
 	imagesInUse, err := getImagesFromPods(clientset)
+	fmt.Println("Images in use by deployed pods: ", imagesInUse)
 	if err != nil {
 		log.Fatalf("Error retrieving pod images: %v", err)
 	}
 
 	// CRI-O 풀 이벤트 로그 가져오기
 	pullEvents, err := getPullEvents(*since)
+	fmt.Println("CRI-O pull Event :: ", pullEvents)
 	if err != nil {
 		log.Fatalf("Error retrieving pull events: %v", err)
 	}
