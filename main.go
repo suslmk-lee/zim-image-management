@@ -121,7 +121,7 @@ func getPullEvents(since string) ([]string, error) {
 
 // 이벤트 로그에서 이미지 이름 추출
 func extractImageName(event string) string {
-	parts := strings.Split(event, "pulled image")
+	parts := strings.Split(event, "Pulled image")
 	if len(parts) < 2 {
 		return ""
 	}
