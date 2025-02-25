@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -23,11 +27,36 @@ type ImagePullCount struct {
 	Count int
 }
 
+// RateLimit GitHub Docker 레지스트리의 rate limit 응답 구조체
+type RateLimit struct {
+	Limit     int       `json:"limit"`
+	Remaining int       `json:"remaining"`
+	Reset     time.Time `json:"reset"`
+	Used      int       `json:"used"`
+}
+
 func main() {
 	// 플래그 설정
 	kubeconfig := flag.String("kubeconfig", filepath.Join(os.Getenv("HOME"), ".kube", "config"), "absolute path to the kubeconfig file")
 	since := flag.String("since", "2024-01-01", "start date for log retrieval (e.g., '2024-01-01')")
+	githubToken := flag.String("github-token", "", "GitHub token for checking Docker rate limits")
 	flag.Parse()
+
+	// GitHub Docker rate limit 조회
+	if *githubToken != "" {
+		rateLimit, err := getDockerRateLimit(*githubToken)
+		if err != nil {
+			log.Printf("Warning: Failed to get Docker rate limit: %v\n", err)
+		} else {
+			fmt.Printf("\nGitHub Docker Rate Limits:\n")
+			fmt.Printf("================================\n")
+			fmt.Printf("Limit: %d\n", rateLimit.Limit)
+			fmt.Printf("Remaining: %d\n", rateLimit.Remaining)
+			fmt.Printf("Used: %d\n", rateLimit.Used)
+			fmt.Printf("Reset Time: %s\n", rateLimit.Reset.Local().Format("2006-01-02 15:04:05"))
+			fmt.Printf("================================\n\n")
+		}
+	}
 
 	// Kubernetes 클라이언트 설정
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
@@ -179,4 +208,43 @@ func extractImageName(event string) string {
 	}
 
 	return cleanImageName(imagePart)
+}
+
+// DockerRateLimit GitHub Docker 레지스트리의 rate limit 정보를 조회
+func getDockerRateLimit(token string) (*RateLimit, error) {
+	if token == "" {
+		return nil, fmt.Errorf("GitHub token is required")
+	}
+
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", "https://api.github.com/rate_limit", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Accept", "application/vnd.github.v3+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var rateLimit struct {
+		Resources struct {
+			Core RateLimit `json:"core"`
+		} `json:"resources"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&rateLimit); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return &rateLimit.Resources.Core, nil
 }
