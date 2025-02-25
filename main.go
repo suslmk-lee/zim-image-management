@@ -41,8 +41,6 @@ func main() {
 
 	// 현재 배포된 파드의 이미지 목록 가져오기
 	imagesInUse, err := getImagesFromPods(clientset)
-	fmt.Println("\nImages in use by deployed pods:")
-	fmt.Println("================================")
 	// 이미지 목록을 슬라이스로 변환하여 정렬
 	var sortedImages []string
 	for image := range imagesInUse {
@@ -50,7 +48,6 @@ func main() {
 	}
 	sort.Strings(sortedImages)
 
-	fmt.Println("================================")
 	if err != nil {
 		log.Fatalf("Error retrieving pod images: %v", err)
 	}
@@ -86,7 +83,7 @@ func main() {
 
 	// 표 형식으로 출력
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', tabwriter.TabIndent)
-	fmt.Fprintln(w, "\nImage Pull Statistics:")
+	fmt.Fprintf(w, "\nImage Pull Statistics (since %s):\n", *since)
 	fmt.Fprintln(w, "=======================================================================")
 	fmt.Fprintln(w, "No.\tImage Name\tPull Count")
 	fmt.Fprintln(w, "-----------------------------------------------------------------------")
@@ -100,8 +97,10 @@ func main() {
 	for _, img := range sortedCounts {
 		totalPulls += img.Count
 	}
-	fmt.Printf("\nTotal pull events for deployed images: %d\n", totalPulls)
-	fmt.Printf("Unique deployed images with pulls: %d\n", len(imagePullCounts))
+	fmt.Printf("\nSummary:\n")
+	fmt.Printf("- Period: Since %s\n", *since)
+	fmt.Printf("- Total pull events: %d\n", totalPulls)
+	fmt.Printf("- Unique images with pulls: %d\n", len(imagePullCounts))
 }
 
 // 이미지 이름에서 태그와 해시를 제거하고 기본 이미지 이름만 반환
