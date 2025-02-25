@@ -126,12 +126,23 @@ func extractImageName(event string) string {
 		return ""
 	}
 	imagePart := strings.TrimSpace(parts[1])
-	fmt.Println("ImagePartMessage :: ", imagePart)
-	end := strings.Index(imagePart, " at ")
-	if end == -1 {
-		end = len(imagePart)
+	
+	// 콜론(:) 이후의 부분 추출
+	if colonIndex := strings.Index(imagePart, ": "); colonIndex != -1 {
+		imagePart = strings.TrimSpace(imagePart[colonIndex+2:])
 	}
-	imageName := strings.TrimSpace(imagePart[:end])
+	
+	// @sha256 이전까지의 부분만 추출
+	if shaIndex := strings.Index(imagePart, "@sha256"); shaIndex != -1 {
+		imagePart = imagePart[:shaIndex]
+	}
+	
+	// 추가 메타데이터(id, name 등) 제거
+	if quotesIndex := strings.Index(imagePart, "\""); quotesIndex != -1 {
+		imagePart = imagePart[:quotesIndex]
+	}
+	
+	imageName := strings.TrimSpace(imagePart)
 	if imageName == "" {
 		return ""
 	}
