@@ -64,20 +64,18 @@ func extractImageName(line string) string {
 // GetPullEvents 지정된 시간 이후의 풀 이벤트를 조회
 func GetPullEvents(since string) ([]string, error) {
 	cmd := exec.Command("journalctl", "-u", "crio", "--since", since, "-g", "pulled image")
-	output, err := cmd.Output()
+	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute journalctl: %v", err)
-	}
-
-	lines := strings.Split(string(output), "\n")
-	var pullEvents []string
-	for _, line := range lines {
-		if strings.Contains(line, "Pulling image") {
-			pullEvents = append(pullEvents, line)
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("journalctl failed: %v, stderr: %s", err, string(exitErr.Stderr))
 		}
+		return nil, fmt.Errorf("error running journalctl: %v", err)
 	}
-
-	return pullEvents, nil
+	lines := strings.Split(string(out), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return nil, fmt.Errorf("no pull events found in logs since %s", since)
+	}
+	return lines, nil
 }
 
 // PrintImagePullStatistics 이미지 풀 통계 출력
