@@ -350,6 +350,16 @@ func getDockerHubRateLimit(auth DockerHubAuth) (*DockerHubRateLimit, error) {
 	// rate limit 정보를 헤더에서 추출
 	rateLimit := &DockerHubRateLimit{}
 
+	// 윈도우 기간 계산 (초 단위)
+	var window int
+	if limitHeader := resp.Header.Get("Ratelimit-Limit"); limitHeader != "" {
+		if parts := strings.Split(limitHeader, ";w="); len(parts) > 1 {
+			window, _ = strconv.Atoi(strings.TrimRight(parts[1], "[]"))
+			// window 값을 이용하여 reset time 계산
+			rateLimit.Reset = time.Now().Add(time.Duration(window) * time.Second)
+		}
+	}
+
 	// 대소문자 구분 없이 헤더 검색
 	for k, v := range resp.Header {
 		if len(v) == 0 {
@@ -362,23 +372,11 @@ func getDockerHubRateLimit(auth DockerHubAuth) (*DockerHubRateLimit, error) {
 			rateLimit.Remaining = parseRateLimit(v[0])
 		case "docker-ratelimit-source":
 			rateLimit.Source = strings.Trim(v[0], "[]")
-		case "ratelimit-reset":
-			if resetTime, err := strconv.ParseInt(strings.Trim(v[0], "[]"), 10, 64); err == nil {
-				rateLimit.Reset = time.Unix(resetTime, 0)
-			}
 		}
 	}
 
 	if rateLimit.Limit == 0 && rateLimit.Remaining == 0 && rateLimit.Source == "" {
 		return nil, fmt.Errorf("no rate limit information found in response headers")
-	}
-
-	// 윈도우 기간 계산 (초 단위)
-	var window int
-	if limitHeader := resp.Header.Get("Ratelimit-Limit"); limitHeader != "" {
-		if parts := strings.Split(limitHeader, ";w="); len(parts) > 1 {
-			window, _ = strconv.Atoi(strings.TrimRight(parts[1], "[]"))
-		}
 	}
 
 	fmt.Printf("\nDocker Hub Rate Limits:\n")
@@ -387,11 +385,9 @@ func getDockerHubRateLimit(auth DockerHubAuth) (*DockerHubRateLimit, error) {
 	fmt.Printf("Remaining: %d requests\n", rateLimit.Remaining)
 	if window > 0 {
 		fmt.Printf("Window: %d hours\n", window/3600)
-	}
-	fmt.Printf("Source: %s\n", rateLimit.Source)
-	if !rateLimit.Reset.IsZero() {
 		fmt.Printf("Reset Time: %s\n", rateLimit.Reset.Format("2006-01-02 15:04:05"))
 	}
+	fmt.Printf("Source: %s\n", rateLimit.Source)
 	fmt.Printf("================================\n\n")
 
 	return rateLimit, nil
