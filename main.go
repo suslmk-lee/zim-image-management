@@ -54,7 +54,7 @@ func main() {
 
 	// CRI-O 풀 이벤트 로그 가져오기
 	pullEvents, err := getPullEvents(*since)
-	fmt.Println("CRI-O pull Event :: ", pullEvents)
+	//fmt.Println("CRI-O pull Event :: ", pullEvents)
 	if err != nil {
 		log.Fatalf("Error retrieving pull events: %v", err)
 	}
@@ -126,6 +126,7 @@ func extractImageName(event string) string {
 		return ""
 	}
 	imagePart := strings.TrimSpace(parts[1])
+	fmt.Println("ImagePartMessage :: ", imagePart)
 	end := strings.Index(imagePart, " at ")
 	if end == -1 {
 		end = len(imagePart)
