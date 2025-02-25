@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"sort" // <--- Added sort package
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +35,20 @@ func main() {
 
 	// 현재 배포된 파드의 이미지 목록 가져오기
 	imagesInUse, err := getImagesFromPods(clientset)
-	fmt.Println("Images in use by deployed pods: ", imagesInUse)
+	fmt.Println("\nImages in use by deployed pods:")
+	fmt.Println("================================")
+	// 이미지 목록을 슬라이스로 변환하여 정렬
+	var sortedImages []string
+	for image := range imagesInUse {
+		sortedImages = append(sortedImages, image)
+	}
+	sort.Strings(sortedImages)
+	
+	// 정렬된 이미지 목록 출력
+	for i, image := range sortedImages {
+		fmt.Printf("%3d. %s\n", i+1, image)
+	}
+	fmt.Println("================================")
 	if err != nil {
 		log.Fatalf("Error retrieving pod images: %v", err)
 	}
