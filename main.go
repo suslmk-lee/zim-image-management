@@ -394,8 +394,12 @@ func getDockerRateLimit(token string) (*RateLimit, error) {
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -405,8 +409,8 @@ func getDockerRateLimit(token string) (*RateLimit, error) {
 		} `json:"resources"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&rateLimit); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v\nResponse body: %s", err, string(resp.Body))
+	if err := json.Unmarshal(body, &rateLimit); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v\nResponse body: %s", err, string(body))
 	}
 
 	return &rateLimit.Resources.Core, nil
