@@ -35,11 +35,12 @@ type RateLimit struct {
 	Used      int   `json:"used"`
 }
 
-// DockerHubRateLimit Docker Hub의 rate limit 정보
+// DockerHubRateLimit Docker Hub의 rate limit 정보를 저장하는 구조체
 type DockerHubRateLimit struct {
 	Limit     int
 	Remaining int
 	Source    string
+	Reset     time.Time
 }
 
 // DockerHubAuth Docker Hub 인증 정보
@@ -361,6 +362,10 @@ func getDockerHubRateLimit(auth DockerHubAuth) (*DockerHubRateLimit, error) {
 			rateLimit.Remaining = parseRateLimit(v[0])
 		case "docker-ratelimit-source":
 			rateLimit.Source = strings.Trim(v[0], "[]")
+		case "ratelimit-reset":
+			if resetTime, err := strconv.ParseInt(strings.Trim(v[0], "[]"), 10, 64); err == nil {
+				rateLimit.Reset = time.Unix(resetTime, 0)
+			}
 		}
 	}
 
@@ -384,6 +389,9 @@ func getDockerHubRateLimit(auth DockerHubAuth) (*DockerHubRateLimit, error) {
 		fmt.Printf("Window: %d hours\n", window/3600)
 	}
 	fmt.Printf("Source: %s\n", rateLimit.Source)
+	if !rateLimit.Reset.IsZero() {
+		fmt.Printf("Reset Time: %s\n", rateLimit.Reset.Format("2006-01-02 15:04:05"))
+	}
 	fmt.Printf("================================\n\n")
 
 	return rateLimit, nil
