@@ -294,43 +294,77 @@ func getDockerHubToken(auth DockerHubAuth) (string, error) {
 
 // getDockerHubRateLimit Docker Hub의 rate limit 정보를 조회
 func getDockerHubRateLimit(auth DockerHubAuth) (*DockerHubRateLimit, error) {
-	// 인증 토큰 획득
-	token, err := getDockerHubToken(auth)
+	client := &http.Client{}
+
+	// 1. 토큰 획득
+	authURL := "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull"
+	req, err := http.NewRequest("GET", authURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auth request: %v", err)
+	}
+
+	req.SetBasicAuth(auth.Username, auth.Password)
+	
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get auth token: %v", err)
 	}
+	defer resp.Body.Close()
 
-	client := &http.Client{}
-	req, err := http.NewRequest("HEAD", "https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("auth request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	req.Header.Add("Authorization", "Bearer "+token)
-	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+	var tokenResp struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to decode token response: %v", err)
+	}
 
-	resp, err := client.Do(req)
+	// 2. Rate limit 정보 조회
+	rateURL := "https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest"
+	req, err = http.NewRequest("HEAD", rateURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to create rate limit request: %v", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenResp.Token))
+	req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+
+	resp, err = client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rate limit: %v", err)
 	}
 	defer resp.Body.Close()
+
+	// 디버그를 위한 모든 헤더 출력
+	fmt.Println("\nDebug - All Response Headers:")
+	for k, v := range resp.Header {
+		fmt.Printf("%s: %v\n", k, v)
+	}
 
 	// rate limit 정보를 헤더에서 추출
 	rateLimit := &DockerHubRateLimit{}
 
-	// 헤더에서 값 추출 및 변환을 위한 헬퍼 함수
-	getHeaderInt := func(header string) int {
-		value := resp.Header.Get(header)
-		if value == "" {
-			return 0
+	// 대소문자 구분 없이 헤더 검색
+	for k, v := range resp.Header {
+		switch strings.ToLower(k) {
+		case "ratelimit-limit":
+			if len(v) > 0 {
+				rateLimit.Limit, _ = strconv.Atoi(v[0])
+			}
+		case "ratelimit-remaining":
+			if len(v) > 0 {
+				rateLimit.Remaining, _ = strconv.Atoi(v[0])
+			}
+		case "docker-ratelimit-source":
+			if len(v) > 0 {
+				rateLimit.Source = v[0]
+			}
 		}
-		result, _ := strconv.Atoi(value)
-		return result
 	}
-
-	rateLimit.Limit = getHeaderInt("RateLimit-Limit")
-	rateLimit.Remaining = getHeaderInt("RateLimit-Remaining")
-	rateLimit.Source = resp.Header.Get("Docker-Ratelimit-Source")
 
 	if rateLimit.Limit == 0 && rateLimit.Remaining == 0 && rateLimit.Source == "" {
 		return nil, fmt.Errorf("no rate limit information found in response headers")
@@ -365,20 +399,14 @@ func getDockerRateLimit(token string) (*RateLimit, error) {
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// 디버그를 위한 응답 출력
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
-	}
-
 	var rateLimit struct {
 		Resources struct {
 			Core RateLimit `json:"core"`
 		} `json:"resources"`
 	}
 
-	if err := json.Unmarshal(body, &rateLimit); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v\nResponse body: %s", err, string(body))
+	if err := json.NewDecoder(resp.Body).Decode(&rateLimit); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v\nResponse body: %s", err, string(resp.Body))
 	}
 
 	return &rateLimit.Resources.Core, nil
