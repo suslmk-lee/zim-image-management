@@ -10,11 +10,18 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"text/tabwriter"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+// 이미지 풀 카운트를 저장하는 구조체
+type ImagePullCount struct {
+	Name  string
+	Count int
+}
 
 func main() {
 	// 플래그 설정
@@ -43,10 +50,6 @@ func main() {
 	}
 	sort.Strings(sortedImages)
 
-	// 정렬된 이미지 목록 출력
-	for i, image := range sortedImages {
-		fmt.Printf("%3d. %s\n", i+1, image)
-	}
 	fmt.Println("================================")
 	if err != nil {
 		log.Fatalf("Error retrieving pod images: %v", err)
@@ -70,16 +73,34 @@ func main() {
 		}
 	}
 
-	// 결과 출력
-	fmt.Println("Image Pull Counts for Deployed Pods (Estimated from CRI-O Events):")
-	fmt.Println("----------------------------------------------------------------")
-	totalPulls := 0
+	// 결과를 정렬하기 위한 슬라이스 생성
+	var sortedCounts []ImagePullCount
 	for image, count := range imagePullCounts {
-		fmt.Printf("%s: %d\n", image, count)
-		totalPulls += count
+		sortedCounts = append(sortedCounts, ImagePullCount{Name: image, Count: count})
 	}
-	fmt.Println("----------------------------------------------------------------")
-	fmt.Printf("Total pull events for deployed images: %d\n", totalPulls)
+
+	// 카운트 내림차순으로 정렬
+	sort.Slice(sortedCounts, func(i, j int) bool {
+		return sortedCounts[i].Count > sortedCounts[j].Count
+	})
+
+	// 표 형식으로 출력
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', tabwriter.TabIndent)
+	fmt.Fprintln(w, "\nImage Pull Statistics:")
+	fmt.Fprintln(w, "=======================================================================")
+	fmt.Fprintln(w, "No.\tImage Name\tPull Count")
+	fmt.Fprintln(w, "-----------------------------------------------------------------------")
+	for i, img := range sortedCounts {
+		fmt.Fprintf(w, "%d\t%s\t%d\n", i+1, img.Name, img.Count)
+	}
+	fmt.Fprintln(w, "=======================================================================")
+	w.Flush()
+
+	var totalPulls int
+	for _, img := range sortedCounts {
+		totalPulls += img.Count
+	}
+	fmt.Printf("\nTotal pull events for deployed images: %d\n", totalPulls)
 	fmt.Printf("Unique deployed images with pulls: %d\n", len(imagePullCounts))
 }
 
@@ -89,12 +110,12 @@ func cleanImageName(image string) string {
 	if shaIndex := strings.Index(image, "@sha256"); shaIndex != -1 {
 		image = image[:shaIndex]
 	}
-	
+
 	// :tag 제거
 	if tagIndex := strings.LastIndex(image, ":"); tagIndex != -1 {
 		image = image[:tagIndex]
 	}
-	
+
 	return strings.TrimSpace(image)
 }
 
@@ -147,16 +168,16 @@ func extractImageName(event string) string {
 		return ""
 	}
 	imagePart := strings.TrimSpace(parts[1])
-	
+
 	// 콜론(:) 이후의 부분 추출
 	if colonIndex := strings.Index(imagePart, ": "); colonIndex != -1 {
 		imagePart = strings.TrimSpace(imagePart[colonIndex+2:])
 	}
-	
+
 	// 따옴표 이후의 메타데이터 제거
 	if quotesIndex := strings.Index(imagePart, "\""); quotesIndex != -1 {
 		imagePart = imagePart[:quotesIndex]
 	}
-	
+
 	return cleanImageName(imagePart)
 }
