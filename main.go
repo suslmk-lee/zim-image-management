@@ -55,16 +55,73 @@ func (r *RateLimit) GetResetTime() time.Time {
 	return time.Unix(r.Reset, 0)
 }
 
+func printUsage() {
+	fmt.Printf(`ZIM (Zim Image Management) - Docker Image Management Tool
+
+Description:
+  ZIM helps you monitor Docker image usage in your Kubernetes cluster and check rate limits
+  for both Docker Hub and GitHub Container Registry.
+
+Usage:
+  zim-image-management [options]
+
+Options:
+`)
+	flag.PrintDefaults()
+	fmt.Printf(`
+Examples:
+  1. Show image pull statistics for the last 24 hours (default):
+     $ zim-image-management
+
+  2. Show image pull statistics for the last 48 hours:
+     $ zim-image-management --since 48
+
+  3. Check GitHub Container Registry rate limits:
+     $ zim-image-management --github-token YOUR_GITHUB_TOKEN
+
+  4. Check Docker Hub rate limits with authentication:
+     $ zim-image-management --docker-username USER --docker-password PASS
+
+  5. Check Docker Hub rate limits anonymously:
+     $ zim-image-management
+
+Note:
+  - Docker Hub rate limits will always be checked (authenticated if credentials are provided, 
+    otherwise anonymously)
+  - All times are displayed in local timezone
+  - The kubeconfig file is read from $HOME/.kube/config by default
+`)
+}
+
 func main() {
+	// 커스텀 usage 메시지 설정
+	flag.Usage = printUsage
+
 	// 플래그 설정
-	kubeconfig := flag.String("kubeconfig", filepath.Join(os.Getenv("HOME"), ".kube", "config"), "absolute path to the kubeconfig file")
-	since := flag.Int("since", 24, "Show statistics for the last N hours (default: 24)")
-	githubToken := flag.String("github-token", "", "GitHub token for checking Docker rate limits")
-	dockerUsername := flag.String("docker-username", "", "Docker Hub username")
-	dockerPassword := flag.String("docker-password", "", "Docker Hub password")
-	dockerToken := flag.String("docker-token", "", "Docker Hub token")
+	kubeconfig := flag.String("kubeconfig", filepath.Join(os.Getenv("HOME"), ".kube", "config"), 
+		"Absolute path to the kubeconfig file")
+	since := flag.Int("since", 24, 
+		"Show statistics for the last N hours (default: 24)")
+	githubToken := flag.String("github-token", "", 
+		"GitHub personal access token for checking GitHub Container Registry rate limits")
+	dockerUsername := flag.String("docker-username", "", 
+		"Docker Hub username for authenticated rate limit checking")
+	dockerPassword := flag.String("docker-password", "", 
+		"Docker Hub password for authenticated rate limit checking")
+	dockerToken := flag.String("docker-token", "", 
+		"Docker Hub token (alternative to username/password)")
+
+	// 버전 플래그 추가
+	version := flag.Bool("version", false, 
+		"Show version information")
 
 	flag.Parse()
+
+	// 버전 정보 출력
+	if *version {
+		fmt.Println("ZIM (Zim Image Management) version 1.0.0")
+		os.Exit(0)
+	}
 
 	// GitHub Container Registry rate limit 확인
 	if *githubToken != "" {
