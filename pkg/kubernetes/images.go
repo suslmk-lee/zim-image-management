@@ -17,6 +17,7 @@ import (
 // GetPodImages 클러스터의 모든 Pod에서 사용 중인 이미지 목록을 조회
 func GetPodImages(clientset *kubernetes.Clientset) ([]string, error) {
 	pods, err := clientset.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{})
+	fmt.Printf(pods.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pods: %v", err)
 	}
@@ -62,7 +63,7 @@ func extractImageName(line string) string {
 
 // GetPullEvents 지정된 시간 이후의 풀 이벤트를 조회
 func GetPullEvents(since string) ([]string, error) {
-	cmd := exec.Command("journalctl", "-u", "crio", "--since", since, "-o", "json")
+	cmd := exec.Command("journalctl", "-u", "crio", "--since", since, "-g", "pulled image")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute journalctl: %v", err)

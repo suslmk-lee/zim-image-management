@@ -117,6 +117,9 @@ func main() {
 
 	// 이미지 풀 이벤트 조회
 	pullEvents, err := kubernetes.GetPullEvents(sinceTime)
+	//pullEvents := []string{
+	//	`{"_GID":"0","MESSAGE":"time=\"2025-02-24 08:58:41.057826731+09:00\" level=info msg=\"Pulling image: quay.io/calico/cni:v3.28.1\" id=e9ccf295-4f1a-44c3-bd87-072e86392509 name=/runtime.v1.ImageService/PullImage","_CMDLINE":"/usr/local/bin/crio","SYSLOG_FACILITY":"3","_SYSTEMD_INVOCATION_ID":"df1c3605c5c1422b80a8a8caa88bb5e4","_MACHINE_ID":"b7c627b40f884efc89cc558b646bb208","_UID":"0","__REALTIME_TIMESTAMP":"1740355121057861","SYSLOG_IDENTIFIER":"crio","_EXE":"/usr/local/bin/crio","_SYSTEMD_UNIT":"crio.service","_SYSTEMD_CGROUP":"/system.slice/crio.service","_STREAM_ID":"25e6d598787e4500a8b8b4db3307ab78","_BOOT_ID":"ee0f5c9b45ae4939b8411b81845a4d77","_HOSTNAME":"cp-dev-cluster1","_CAP_EFFECTIVE":"1ffffffffff","PRIORITY":"6","_SELINUX_CONTEXT":"unconfined\n","__MONOTONIC_TIMESTAMP":"28458785","__CURSOR":"s=b38820a2e8d34be3b55b8e061bb9e57f;i=a7f64;b=ee0f5c9b45ae4939b8411b81845a4d77;m=1b23f21;t=62ed800c61045;x=330c693a2769fdfd","_SYSTEMD_SLICE":"system.slice","_COMM":"crio","_TRANSPORT":"stdout","_PID":"581"}`,
+	//}
 	fmt.Println("Pull Events:", pullEvents)
 	if err != nil {
 		log.Fatalf("Failed to get pull events: %v", err)
