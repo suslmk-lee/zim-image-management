@@ -117,6 +117,7 @@ func main() {
 
 	// 이미지 풀 이벤트 조회
 	pullEvents, err := kubernetes.GetPullEvents(sinceTime)
+	fmt.Println("Pull Events:", pullEvents)
 	if err != nil {
 		log.Fatalf("Failed to get pull events: %v", err)
 	}

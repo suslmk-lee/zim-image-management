@@ -83,6 +83,7 @@ func GetPullEvents(since string) ([]string, error) {
 func PrintImagePullStatistics(clientset *kubernetes.Clientset, pullEvents []string, since int) error {
 	// 현재 클러스터에서 사용 중인 이미지 목록 조회
 	clusterImages, err := GetPodImages(clientset)
+	fmt.Println("<><>", clusterImages)
 	if err != nil {
 		return fmt.Errorf("failed to get cluster images: %v", err)
 	}
@@ -117,7 +118,7 @@ func PrintImagePullStatistics(clientset *kubernetes.Clientset, pullEvents []stri
 	fmt.Fprintln(w, "=======================================================================")
 	fmt.Fprintln(w, "No.\tImage Name\tPull Count\tIn Use")
 	fmt.Fprintln(w, "-----------------------------------------------------------------------")
-	
+
 	for i, img := range imagePullCounts {
 		inUse := "No"
 		cleanName := cleanImageName(img.Name)
