@@ -126,6 +126,7 @@ func extractImageName(event string) string {
 		return ""
 	}
 	imagePart := strings.TrimSpace(parts[1])
+	fmt.Println("[1] ", imagePart)
 
 	// 콜론(:) 이후의 부분 추출
 	if colonIndex := strings.Index(imagePart, ": "); colonIndex != -1 {
@@ -134,20 +135,19 @@ func extractImageName(event string) string {
 
 	// @sha256 이전까지의 부분만 추출
 	// ImagePartMessage ::  : quay.io/calico/node@sha256:d8c644a8a3eee06d88825b9a9fec6e7cd3b7c276d7f90afa8685a79fb300e7e3" id=6daac5b3-05b6-44b9-a823-4856d0ac6892 name=/runtime.v1.ImageService/PullImage
-	if shaIndex := strings.Index(imagePart, "@sha256"); shaIndex != -1 {
+	if shaIndex := strings.Index(imagePart, "\" id="); shaIndex != -1 {
 		imagePart = imagePart[:shaIndex]
 	}
-	fmt.Println("[1] ", imagePart)
 
 	// 추가 메타데이터(id, name 등) 제거
 	if quotesIndex := strings.Index(imagePart, "\""); quotesIndex != -1 {
 		imagePart = imagePart[:quotesIndex]
 	}
-	fmt.Println("[2] ", imagePart)
 
 	imageName := strings.TrimSpace(imagePart)
 	if imageName == "" {
 		return ""
 	}
+	fmt.Println("[2] ", imagePart)
 	return imageName
 }
