@@ -6,19 +6,19 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 // 이미지 풀 카운트를 저장하는 구조체
@@ -35,6 +35,13 @@ type RateLimit struct {
 	Used      int   `json:"used"`
 }
 
+// DockerHubRateLimit Docker Hub의 rate limit 정보
+type DockerHubRateLimit struct {
+	Limit     int
+	Remaining int
+	Source    string
+}
+
 // GetResetTime Unix timestamp를 time.Time으로 변환
 func (r *RateLimit) GetResetTime() time.Time {
 	return time.Unix(r.Reset, 0)
@@ -45,6 +52,7 @@ func main() {
 	kubeconfig := flag.String("kubeconfig", filepath.Join(os.Getenv("HOME"), ".kube", "config"), "absolute path to the kubeconfig file")
 	since := flag.String("since", "2024-01-01", "start date for log retrieval (e.g., '2024-01-01')")
 	githubToken := flag.String("github-token", "", "GitHub token for checking Docker rate limits")
+	checkDockerHub := flag.Bool("check-dockerhub", false, "Check Docker Hub rate limits")
 	flag.Parse()
 
 	// GitHub Docker rate limit 조회
@@ -59,6 +67,21 @@ func main() {
 			fmt.Printf("Remaining: %d\n", rateLimit.Remaining)
 			fmt.Printf("Used: %d\n", rateLimit.Used)
 			fmt.Printf("Reset Time: %s\n", rateLimit.GetResetTime().Local().Format("2006-01-02 15:04:05"))
+			fmt.Printf("================================\n\n")
+		}
+	}
+
+	// Docker Hub rate limit 조회
+	if *checkDockerHub {
+		dockerLimit, err := getDockerHubRateLimit()
+		if err != nil {
+			log.Printf("Warning: Failed to get Docker Hub rate limit: %v\n", err)
+		} else {
+			fmt.Printf("\nDocker Hub Rate Limits:\n")
+			fmt.Printf("================================\n")
+			fmt.Printf("Limit: %d\n", dockerLimit.Limit)
+			fmt.Printf("Remaining: %d\n", dockerLimit.Remaining)
+			fmt.Printf("Source: %s\n", dockerLimit.Source)
 			fmt.Printf("================================\n\n")
 		}
 	}
@@ -258,4 +281,46 @@ func getDockerRateLimit(token string) (*RateLimit, error) {
 	}
 
 	return &rateLimit.Resources.Core, nil
+}
+
+// getDockerHubRateLimit Docker Hub의 rate limit 정보를 조회
+func getDockerHubRateLimit() (*DockerHubRateLimit, error) {
+	client := &http.Client{}
+	req, err := http.NewRequest("HEAD", "https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Docker Hub requires authentication
+	req.Header.Add("Authorization", "Bearer ")
+	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// rate limit 정보를 헤더에서 추출
+	rateLimit := &DockerHubRateLimit{}
+
+	// 헤더에서 값 추출 및 변환을 위한 헬퍼 함수
+	getHeaderInt := func(header string) int {
+		value := resp.Header.Get(header)
+		if value == "" {
+			return 0
+		}
+		result, _ := strconv.Atoi(value)
+		return result
+	}
+
+	rateLimit.Limit = getHeaderInt("RateLimit-Limit")
+	rateLimit.Remaining = getHeaderInt("RateLimit-Remaining")
+	rateLimit.Source = resp.Header.Get("Docker-Ratelimit-Source")
+
+	if rateLimit.Limit == 0 && rateLimit.Remaining == 0 && rateLimit.Source == "" {
+		return nil, fmt.Errorf("no rate limit information found in response headers")
+	}
+
+	return rateLimit, nil
 }
