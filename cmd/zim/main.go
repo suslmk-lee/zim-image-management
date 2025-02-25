@@ -122,7 +122,7 @@ func main() {
 	//	`Feb 24 08:58:44 cp-dev-cluster1 crio[581]: time="2025-02-24 08:58:44.138088507+09:00" level=info msg="Pulled image: registry.k8s.io/dns/k8s-dns-node-cache@sha256:b9c3ae254f65a9b0cd0c8c3f11a19c81b601561d388035d0770d6f9a41be15c5" id=125d8286-66b0-4d12-aa90-51b253e0aba7 name=/runtime.v1.ImageService/PullImage`,
 	//	`Feb 24 08:58:45 cp-dev-cluster1 crio[581]: time="2025-02-24 08:58:45.317130788+09:00" level=info msg="Pulled image: registry.k8s.io/kube-proxy@sha256:33ee1df1ba70e41bf9506d54bb5e64ef5f3ba9fc1b3021aaa4468606a7802acc" id=092e4322-1eee-4327-9521-50c42a08891f name=/runtime.v1.ImageService/PullImage`,
 	//}
-	fmt.Println("Pull Events:", pullEvents)
+	//fmt.Println("Pull Events:", pullEvents)
 	if err != nil {
 		log.Fatalf("Failed to get pull events: %v", err)
 	}
