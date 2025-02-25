@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"sort" // <--- Added sort package
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +42,7 @@ func main() {
 		sortedImages = append(sortedImages, image)
 	}
 	sort.Strings(sortedImages)
-	
+
 	// 정렬된 이미지 목록 출력
 	for i, image := range sortedImages {
 		fmt.Printf("%3d. %s\n", i+1, image)
