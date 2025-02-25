@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -52,12 +51,22 @@ func cleanImageName(imageName string) string {
 
 // extractImageName 로그 라인에서 이미지 이름 추출
 func extractImageName(line string) string {
-	re := regexp.MustCompile(`"image":"([^"]+)"`)
-	matches := re.FindStringSubmatch(line)
-	if len(matches) < 2 {
+	parts := strings.Split(line, "Pulled image")
+	if len(parts) < 2 {
 		return ""
 	}
-	imagePart := matches[1]
+	imagePart := strings.TrimSpace(parts[1])
+
+	// 콜론(:) 이후의 부분 추출
+	if colonIndex := strings.Index(imagePart, ": "); colonIndex != -1 {
+		imagePart = strings.TrimSpace(imagePart[colonIndex+2:])
+	}
+
+	// 따옴표 이후의 메타데이터 제거
+	if quotesIndex := strings.Index(imagePart, "\""); quotesIndex != -1 {
+		imagePart = imagePart[:quotesIndex]
+	}
+
 	return cleanImageName(imagePart)
 }
 
@@ -82,7 +91,7 @@ func GetPullEvents(since string) ([]string, error) {
 func PrintImagePullStatistics(clientset *kubernetes.Clientset, pullEvents []string, since int) error {
 	// 현재 클러스터에서 사용 중인 이미지 목록 조회
 	clusterImages, err := GetPodImages(clientset)
-	fmt.Println("<><>", clusterImages)
+	//fmt.Println("<><>", clusterImages)
 	if err != nil {
 		return fmt.Errorf("failed to get cluster images: %v", err)
 	}

@@ -118,7 +118,9 @@ func main() {
 	// 이미지 풀 이벤트 조회
 	pullEvents, err := kubernetes.GetPullEvents(sinceTime)
 	//pullEvents := []string{
-	//	`{"_GID":"0","MESSAGE":"time=\"2025-02-24 08:58:41.057826731+09:00\" level=info msg=\"Pulling image: quay.io/calico/cni:v3.28.1\" id=e9ccf295-4f1a-44c3-bd87-072e86392509 name=/runtime.v1.ImageService/PullImage","_CMDLINE":"/usr/local/bin/crio","SYSLOG_FACILITY":"3","_SYSTEMD_INVOCATION_ID":"df1c3605c5c1422b80a8a8caa88bb5e4","_MACHINE_ID":"b7c627b40f884efc89cc558b646bb208","_UID":"0","__REALTIME_TIMESTAMP":"1740355121057861","SYSLOG_IDENTIFIER":"crio","_EXE":"/usr/local/bin/crio","_SYSTEMD_UNIT":"crio.service","_SYSTEMD_CGROUP":"/system.slice/crio.service","_STREAM_ID":"25e6d598787e4500a8b8b4db3307ab78","_BOOT_ID":"ee0f5c9b45ae4939b8411b81845a4d77","_HOSTNAME":"cp-dev-cluster1","_CAP_EFFECTIVE":"1ffffffffff","PRIORITY":"6","_SELINUX_CONTEXT":"unconfined\n","__MONOTONIC_TIMESTAMP":"28458785","__CURSOR":"s=b38820a2e8d34be3b55b8e061bb9e57f;i=a7f64;b=ee0f5c9b45ae4939b8411b81845a4d77;m=1b23f21;t=62ed800c61045;x=330c693a2769fdfd","_SYSTEMD_SLICE":"system.slice","_COMM":"crio","_TRANSPORT":"stdout","_PID":"581"}`,
+	//	`Feb 24 08:58:42 cp-dev-cluster1 crio[581]: time="2025-02-24 08:58:42.934122405+09:00" level=info msg="Pulled image: quay.io/calico/cni@sha256:4bf108485f738856b2a56dbcfb3848c8fb9161b97c967a7cd479a60855e13370" id=e9ccf295-4f1a-44c3-bd87-072e86392509 name=/runtime.v1.ImageService/PullImage`,
+	//	`Feb 24 08:58:44 cp-dev-cluster1 crio[581]: time="2025-02-24 08:58:44.138088507+09:00" level=info msg="Pulled image: registry.k8s.io/dns/k8s-dns-node-cache@sha256:b9c3ae254f65a9b0cd0c8c3f11a19c81b601561d388035d0770d6f9a41be15c5" id=125d8286-66b0-4d12-aa90-51b253e0aba7 name=/runtime.v1.ImageService/PullImage`,
+	//	`Feb 24 08:58:45 cp-dev-cluster1 crio[581]: time="2025-02-24 08:58:45.317130788+09:00" level=info msg="Pulled image: registry.k8s.io/kube-proxy@sha256:33ee1df1ba70e41bf9506d54bb5e64ef5f3ba9fc1b3021aaa4468606a7802acc" id=092e4322-1eee-4327-9521-50c42a08891f name=/runtime.v1.ImageService/PullImage`,
 	//}
 	fmt.Println("Pull Events:", pullEvents)
 	if err != nil {
