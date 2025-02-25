@@ -42,6 +42,13 @@ type DockerHubRateLimit struct {
 	Source    string
 }
 
+// DockerHubAuth Docker Hub 인증 정보
+type DockerHubAuth struct {
+	Username string
+	Password string
+	Token    string
+}
+
 // GetResetTime Unix timestamp를 time.Time으로 변환
 func (r *RateLimit) GetResetTime() time.Time {
 	return time.Unix(r.Reset, 0)
@@ -53,6 +60,9 @@ func main() {
 	since := flag.String("since", "2024-01-01", "start date for log retrieval (e.g., '2024-01-01')")
 	githubToken := flag.String("github-token", "", "GitHub token for checking Docker rate limits")
 	checkDockerHub := flag.Bool("check-dockerhub", false, "Check Docker Hub rate limits")
+	dockerUsername := flag.String("docker-username", "", "Docker Hub username")
+	dockerPassword := flag.String("docker-password", "", "Docker Hub password")
+	dockerToken := flag.String("docker-token", "", "Docker Hub token (alternative to username/password)")
 	flag.Parse()
 
 	// GitHub Docker rate limit 조회
@@ -73,7 +83,13 @@ func main() {
 
 	// Docker Hub rate limit 조회
 	if *checkDockerHub {
-		dockerLimit, err := getDockerHubRateLimit()
+		auth := DockerHubAuth{
+			Username: *dockerUsername,
+			Password: *dockerPassword,
+			Token:    *dockerToken,
+		}
+		
+		dockerLimit, err := getDockerHubRateLimit(auth)
 		if err != nil {
 			log.Printf("Warning: Failed to get Docker Hub rate limit: %v\n", err)
 		} else {
@@ -238,6 +254,91 @@ func extractImageName(event string) string {
 	return cleanImageName(imagePart)
 }
 
+// getDockerHubToken Docker Hub 인증 토큰 획득
+func getDockerHubToken(auth DockerHubAuth) (string, error) {
+	if auth.Token != "" {
+		return auth.Token, nil
+	}
+
+	// Basic 인증 정보로 토큰 획득
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull", nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create auth request: %v", err)
+	}
+
+	if auth.Username != "" && auth.Password != "" {
+		req.SetBasicAuth(auth.Username, auth.Password)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to get auth token: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("auth request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return "", fmt.Errorf("failed to decode token response: %v", err)
+	}
+
+	return tokenResp.Token, nil
+}
+
+// getDockerHubRateLimit Docker Hub의 rate limit 정보를 조회
+func getDockerHubRateLimit(auth DockerHubAuth) (*DockerHubRateLimit, error) {
+	// 인증 토큰 획득
+	token, err := getDockerHubToken(auth)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get auth token: %v", err)
+	}
+
+	client := &http.Client{}
+	req, err := http.NewRequest("HEAD", "https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// rate limit 정보를 헤더에서 추출
+	rateLimit := &DockerHubRateLimit{}
+
+	// 헤더에서 값 추출 및 변환을 위한 헬퍼 함수
+	getHeaderInt := func(header string) int {
+		value := resp.Header.Get(header)
+		if value == "" {
+			return 0
+		}
+		result, _ := strconv.Atoi(value)
+		return result
+	}
+
+	rateLimit.Limit = getHeaderInt("RateLimit-Limit")
+	rateLimit.Remaining = getHeaderInt("RateLimit-Remaining")
+	rateLimit.Source = resp.Header.Get("Docker-Ratelimit-Source")
+
+	if rateLimit.Limit == 0 && rateLimit.Remaining == 0 && rateLimit.Source == "" {
+		return nil, fmt.Errorf("no rate limit information found in response headers")
+	}
+
+	return rateLimit, nil
+}
+
 // DockerRateLimit GitHub Docker 레지스트리의 rate limit 정보를 조회
 func getDockerRateLimit(token string) (*RateLimit, error) {
 	if token == "" {
@@ -281,46 +382,4 @@ func getDockerRateLimit(token string) (*RateLimit, error) {
 	}
 
 	return &rateLimit.Resources.Core, nil
-}
-
-// getDockerHubRateLimit Docker Hub의 rate limit 정보를 조회
-func getDockerHubRateLimit() (*DockerHubRateLimit, error) {
-	client := &http.Client{}
-	req, err := http.NewRequest("HEAD", "https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	// Docker Hub requires authentication
-	req.Header.Add("Authorization", "Bearer ")
-	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// rate limit 정보를 헤더에서 추출
-	rateLimit := &DockerHubRateLimit{}
-
-	// 헤더에서 값 추출 및 변환을 위한 헬퍼 함수
-	getHeaderInt := func(header string) int {
-		value := resp.Header.Get(header)
-		if value == "" {
-			return 0
-		}
-		result, _ := strconv.Atoi(value)
-		return result
-	}
-
-	rateLimit.Limit = getHeaderInt("RateLimit-Limit")
-	rateLimit.Remaining = getHeaderInt("RateLimit-Remaining")
-	rateLimit.Source = resp.Header.Get("Docker-Ratelimit-Source")
-
-	if rateLimit.Limit == 0 && rateLimit.Remaining == 0 && rateLimit.Source == "" {
-		return nil, fmt.Errorf("no rate limit information found in response headers")
-	}
-
-	return rateLimit, nil
 }
