@@ -29,10 +29,15 @@ type ImagePullCount struct {
 
 // RateLimit GitHub Docker 레지스트리의 rate limit 응답 구조체
 type RateLimit struct {
-	Limit     int       `json:"limit"`
-	Remaining int       `json:"remaining"`
-	Reset     time.Time `json:"reset"`
-	Used      int       `json:"used"`
+	Limit     int   `json:"limit"`
+	Remaining int   `json:"remaining"`
+	Reset     int64 `json:"reset"` // Unix timestamp
+	Used      int   `json:"used"`
+}
+
+// GetResetTime Unix timestamp를 time.Time으로 변환
+func (r *RateLimit) GetResetTime() time.Time {
+	return time.Unix(r.Reset, 0)
 }
 
 func main() {
@@ -53,7 +58,7 @@ func main() {
 			fmt.Printf("Limit: %d\n", rateLimit.Limit)
 			fmt.Printf("Remaining: %d\n", rateLimit.Remaining)
 			fmt.Printf("Used: %d\n", rateLimit.Used)
-			fmt.Printf("Reset Time: %s\n", rateLimit.Reset.Local().Format("2006-01-02 15:04:05"))
+			fmt.Printf("Reset Time: %s\n", rateLimit.GetResetTime().Local().Format("2006-01-02 15:04:05"))
 			fmt.Printf("================================\n\n")
 		}
 	}
@@ -236,14 +241,20 @@ func getDockerRateLimit(token string) (*RateLimit, error) {
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
+	// 디버그를 위한 응답 출력
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
 	var rateLimit struct {
 		Resources struct {
 			Core RateLimit `json:"core"`
 		} `json:"resources"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&rateLimit); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
+	if err := json.Unmarshal(body, &rateLimit); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v\nResponse body: %s", err, string(body))
 	}
 
 	return &rateLimit.Resources.Core, nil
