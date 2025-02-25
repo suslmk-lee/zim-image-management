@@ -58,7 +58,7 @@ func (r *RateLimit) GetResetTime() time.Time {
 func main() {
 	// 플래그 설정
 	kubeconfig := flag.String("kubeconfig", filepath.Join(os.Getenv("HOME"), ".kube", "config"), "absolute path to the kubeconfig file")
-	since := flag.String("since", "2024-01-01", "start date for log retrieval (e.g., '2024-01-01')")
+	since := flag.Int("since", 24, "Show statistics for the last N hours (default: 24)")
 	githubToken := flag.String("github-token", "", "GitHub token for checking Docker rate limits")
 	checkDockerHub := flag.Bool("check-dockerhub", false, "Check Docker Hub rate limits")
 	dockerUsername := flag.String("docker-username", "", "Docker Hub username")
@@ -120,7 +120,8 @@ func main() {
 	}
 
 	// CRI-O 풀 이벤트 로그 가져오기
-	pullEvents, err := getPullEvents(*since)
+	sinceTime := time.Now().Add(-time.Duration(*since) * time.Hour).Format("2006-01-02")
+	pullEvents, err := getPullEvents(sinceTime)
 	//fmt.Println("CRI-O pull Event :: ", pullEvents)
 	if err != nil {
 		log.Fatalf("Error retrieving pull events: %v", err)
@@ -150,7 +151,7 @@ func main() {
 
 	// 표 형식으로 출력
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', tabwriter.TabIndent)
-	fmt.Fprintf(w, "\nImage Pull Statistics (since %s):\n", *since)
+	fmt.Fprintf(w, "\nImage Pull Statistics (Last %d hours):\n", *since)
 	fmt.Fprintln(w, "=======================================================================")
 	fmt.Fprintln(w, "No.\tImage Name\tPull Count")
 	fmt.Fprintln(w, "-----------------------------------------------------------------------")
@@ -165,7 +166,7 @@ func main() {
 		totalPulls += img.Count
 	}
 	fmt.Printf("\nSummary:\n")
-	fmt.Printf("- Period: Since %s\n", *since)
+	fmt.Printf("- Period: Last %d hours\n", *since)
 	fmt.Printf("- Total pull events: %d\n", totalPulls)
 	fmt.Printf("- Unique images with pulls: %d\n", len(imagePullCounts))
 }
