@@ -1,4 +1,4 @@
-module zim-image-management
+module github.com/suslmk-lee/zim-image-management
 
 go 1.24.0
 

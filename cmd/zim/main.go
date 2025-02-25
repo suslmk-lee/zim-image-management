@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/suslmk-lee/zim-image-management/pkg/docker"
@@ -56,8 +55,6 @@ func main() {
 	flag.Usage = printUsage
 
 	// 플래그 설정
-	kubeconfig := flag.String("kubeconfig", filepath.Join(os.Getenv("HOME"), ".kube", "config"), 
-		"Absolute path to the kubeconfig file")
 	since := flag.Int("since", 24, 
 		"Show statistics for the last N hours (default: 24)")
 	githubToken := flag.String("github-token", "", 
