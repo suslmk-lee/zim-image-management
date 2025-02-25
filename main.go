@@ -83,6 +83,21 @@ func main() {
 	fmt.Printf("Unique deployed images with pulls: %d\n", len(imagePullCounts))
 }
 
+// 이미지 이름에서 태그와 해시를 제거하고 기본 이미지 이름만 반환
+func cleanImageName(image string) string {
+	// @sha256 해시 제거
+	if shaIndex := strings.Index(image, "@sha256"); shaIndex != -1 {
+		image = image[:shaIndex]
+	}
+	
+	// :tag 제거
+	if tagIndex := strings.LastIndex(image, ":"); tagIndex != -1 {
+		image = image[:tagIndex]
+	}
+	
+	return strings.TrimSpace(image)
+}
+
 // 현재 배포된 파드에서 사용 중인 이미지 목록 가져오기
 func getImagesFromPods(clientset *kubernetes.Clientset) (map[string]bool, error) {
 	pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
@@ -93,10 +108,16 @@ func getImagesFromPods(clientset *kubernetes.Clientset) (map[string]bool, error)
 	images := make(map[string]bool)
 	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
-			images[container.Image] = true
+			cleanedImage := cleanImageName(container.Image)
+			if cleanedImage != "" {
+				images[cleanedImage] = true
+			}
 		}
 		for _, initContainer := range pod.Spec.InitContainers {
-			images[initContainer.Image] = true
+			cleanedImage := cleanImageName(initContainer.Image)
+			if cleanedImage != "" {
+				images[cleanedImage] = true
+			}
 		}
 	}
 	return images, nil
@@ -126,28 +147,16 @@ func extractImageName(event string) string {
 		return ""
 	}
 	imagePart := strings.TrimSpace(parts[1])
-	fmt.Println("[1] ", imagePart)
-
+	
 	// 콜론(:) 이후의 부분 추출
 	if colonIndex := strings.Index(imagePart, ": "); colonIndex != -1 {
 		imagePart = strings.TrimSpace(imagePart[colonIndex+2:])
 	}
-
-	// @sha256 이전까지의 부분만 추출
-	// ImagePartMessage ::  : quay.io/calico/node@sha256:d8c644a8a3eee06d88825b9a9fec6e7cd3b7c276d7f90afa8685a79fb300e7e3" id=6daac5b3-05b6-44b9-a823-4856d0ac6892 name=/runtime.v1.ImageService/PullImage
-	if shaIndex := strings.Index(imagePart, "\" id="); shaIndex != -1 {
-		imagePart = imagePart[:shaIndex]
-	}
-
-	// 추가 메타데이터(id, name 등) 제거
+	
+	// 따옴표 이후의 메타데이터 제거
 	if quotesIndex := strings.Index(imagePart, "\""); quotesIndex != -1 {
 		imagePart = imagePart[:quotesIndex]
 	}
-
-	imageName := strings.TrimSpace(imagePart)
-	if imageName == "" {
-		return ""
-	}
-	fmt.Println("[2] ", imagePart)
-	return imageName
+	
+	return cleanImageName(imagePart)
 }
