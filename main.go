@@ -88,18 +88,10 @@ func main() {
 			Password: *dockerPassword,
 			Token:    *dockerToken,
 		}
-		
-		dockerLimit, err := getDockerHubRateLimit(auth)
+
+		_, err := getDockerHubRateLimit(auth)
 		if err != nil {
 			log.Printf("Warning: Failed to get Docker Hub rate limit: %v\n", err)
-		} else {
-			fmt.Printf("\nDocker Hub Rate Limits:\n")
-			fmt.Printf("================================\n")
-			fmt.Printf("Limit: %d requests\n", dockerLimit.Limit)
-			fmt.Printf("Remaining: %d requests\n", dockerLimit.Remaining)
-			fmt.Printf("Window: %d hours\n", dockerLimit.Limit/3600)
-			fmt.Printf("Source: %s\n", dockerLimit.Source)
-			fmt.Printf("================================\n\n")
 		}
 	}
 
@@ -319,7 +311,7 @@ func getDockerHubRateLimit(auth DockerHubAuth) (*DockerHubRateLimit, error) {
 	}
 
 	req.SetBasicAuth(auth.Username, auth.Password)
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get auth token: %v", err)
@@ -388,7 +380,9 @@ func getDockerHubRateLimit(auth DockerHubAuth) (*DockerHubRateLimit, error) {
 	fmt.Printf("================================\n")
 	fmt.Printf("Limit: %d requests\n", rateLimit.Limit)
 	fmt.Printf("Remaining: %d requests\n", rateLimit.Remaining)
-	fmt.Printf("Window: %d hours\n", window/3600)
+	if window > 0 {
+		fmt.Printf("Window: %d hours\n", window/3600)
+	}
 	fmt.Printf("Source: %s\n", rateLimit.Source)
 	fmt.Printf("================================\n\n")
 
