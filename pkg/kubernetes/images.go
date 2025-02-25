@@ -16,7 +16,6 @@ import (
 // GetPodImages 클러스터의 모든 Pod에서 사용 중인 이미지 목록을 조회
 func GetPodImages(clientset *kubernetes.Clientset) ([]string, error) {
 	pods, err := clientset.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{})
-	fmt.Printf(pods.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pods: %v", err)
 	}
