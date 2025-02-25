@@ -94,21 +94,22 @@ func main() {
 		}
 	}
 
-	// Docker Hub rate limit 확인
-	if *dockerToken != "" || (*dockerUsername != "" && *dockerPassword != "") {
-		var auth docker.DockerHubAuth
-		if *dockerToken != "" {
-			auth = docker.DockerHubAuth{Token: *dockerToken}
-		} else {
-			auth = docker.DockerHubAuth{Username: *dockerUsername, Password: *dockerPassword}
-		}
+	// Docker Hub rate limit 확인 (인증된 사용자 또는 익명)
+	auth := docker.DockerHubAuth{
+		Username: *dockerUsername,
+		Password: *dockerPassword,
+		Token:    *dockerToken,
+	}
 
-		dockerLimit, err := docker.GetDockerHubRateLimit(auth)
-		if err != nil {
-			log.Printf("Warning: Failed to get Docker Hub rate limit: %v", err)
-		} else {
-			docker.PrintDockerHubRateLimit(dockerLimit, auth)
-		}
+	dockerLimit, err := docker.GetDockerHubRateLimit(auth)
+	if err != nil {
+		log.Printf("Warning: Failed to get Docker Hub rate limit: %v\n", err)
+	}
+
+	if err != nil {
+		log.Printf("Warning: Failed to get Docker Hub rate limit: %v", err)
+	} else {
+		docker.PrintDockerHubRateLimit(dockerLimit, auth)
 	}
 
 	// 시간 범위 계산
